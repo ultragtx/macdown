@@ -31,6 +31,7 @@
 #import "WebView+WebViewPrivateHeaders.h"
 #import "MPToolbarController.h"
 #import <JavaScriptCore/JavaScriptCore.h>
+#import "KSURLUtilities.h"
 
 static NSString * const kMPDefaultAutosaveName = @"Untitled";
 
@@ -250,6 +251,24 @@ static void (^MPGetPreviewLoadingCompletionHandler(MPDocument *doc))()
         }
     };
 }
+
+@interface MPDocument (MPRelativeFilePathResolver) <MPRelativeFilePathResolver>
+
+@end
+
+@implementation MPDocument (MPRelativeFilePathResolver)
+
+- (NSString *)relativeFilePath:(NSString *)filePath {
+    NSURL *baseURL = self.fileURL;
+    if (!baseURL) {
+        return nil;
+    }
+    NSURL *fileURL = [NSURL fileURLWithPath:filePath];
+    
+    return [fileURL ks_stringRelativeToURL:baseURL];
+}
+
+@end
 
 
 @implementation MPDocument
@@ -1524,6 +1543,7 @@ static void (^MPGetPreviewLoadingCompletionHandler(MPDocument *doc))()
 - (void)setupEditor:(NSString *)changedKey
 {
     [self.highlighter deactivate];
+    self.editor.relativeFilePathResolver = self;
 
     if (!changedKey || [changedKey isEqualToString:@"extensionFootnotes"])
     {

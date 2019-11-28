@@ -8,9 +8,15 @@
 
 #import <Cocoa/Cocoa.h>
 
+@protocol MPRelativeFilePathResolver <NSObject>
+@required
+- (NSString *)relativeFilePath:(NSString *)filePath;
+@end
+
 @interface MPEditorView : NSTextView
 
 @property BOOL scrollsPastEnd;
+@property (weak) id<MPRelativeFilePathResolver> relativeFilePathResolver;
 - (NSRect)contentRect;
 
 @end

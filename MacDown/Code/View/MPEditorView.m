@@ -69,25 +69,66 @@ NS_INLINE BOOL MPAreRectsEqual(NSRect r1, NSRect r2)
     sourceDragMask = [sender draggingSourceOperationMask];
     pboard = [sender draggingPasteboard];
     
-    if ( [[pboard types] containsObject:NSFilenamesPboardType] ) {
+    NSArray<NSPasteboardType> *pasteboardTypes = [pboard types];
+    
+    if ( [pasteboardTypes containsObject:NSFilenamesPboardType] ) {
         NSArray *files = [pboard propertyListForType:NSFilenamesPboardType];
         
-        /* Load data of file. */
-        NSError *error;
-        NSData *fileData = [NSData dataWithContentsOfFile: files[0]
-                                                  options: NSMappedRead
-                                                    error: &error];
-        if (!error) {
-            // convert to base64 representation
-            NSString *dataString = [fileData base64Encoding];
+        BOOL usePath = true;
+        BOOL useRelativePath = true;
+        
+        NSInteger insertionPoint = [[[self selectedRanges] objectAtIndex:0] rangeValue].location;
+        
+        if (usePath) {
+            NSString *filePath = files[0];
+            if (useRelativePath) {
+                NSString *relativePath = [self.relativeFilePathResolver relativeFilePath:filePath];
+                if (relativePath) {
+                    filePath = relativePath;
+                }
+            }
             
             // insert into text.
-            NSInteger insertionPoint = [[[self selectedRanges] objectAtIndex:0] rangeValue].location;
-            [self setString:[NSString stringWithFormat:@"%@![](data:image/jpeg;base64,%@)%@", [[self string] substringToIndex:insertionPoint], dataString, [[self string] substringFromIndex:insertionPoint]]];
+            [self setString:[NSString stringWithFormat:@"%@\n![](%@)%@", [[self string] substringToIndex:insertionPoint], filePath, [[self string] substringFromIndex:insertionPoint]]];
             [self didChangeText];
-        } else {
-            return NO;
         }
+        else {
+            /* Load data of file. */
+            NSError *error;
+            NSData *fileData = [NSData dataWithContentsOfFile: files[0]
+                                                      options: NSMappedRead
+                                                        error: &error];
+            if (!error) {
+                // convert to base64 representation
+                NSString *dataString = [fileData base64Encoding];
+                
+                // insert into text.
+                [self setString:[NSString stringWithFormat:@"%@\n![](data:image/jpeg;base64,%@)%@", [[self string] substringToIndex:insertionPoint], dataString, [[self string] substringFromIndex:insertionPoint]]];
+                [self didChangeText];
+            } else {
+                return NO;
+            }
+        }
+        
+    }
+    else if ([pasteboardTypes containsObject:NSURLPboardType]) {
+        NSArray *urls = [pboard propertyListForType:NSURLPboardType];
+        NSString *urlStr = urls[0];
+        NSError *error;
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern: @"\\.(jpg|jpeg|png|gif|tiff|bmp)$"
+                                                                               options: NSRegularExpressionCaseInsensitive
+                                                                                 error: &error];
+        BOOL isImageUrl = !![regex firstMatchInString:urlStr options:0 range:NSMakeRange(0, urlStr.length)];
+        
+        NSInteger insertionPoint = [[[self selectedRanges] objectAtIndex:0] rangeValue].location;
+        if (isImageUrl) {
+            [self setString:[NSString stringWithFormat:@"%@\n![](%@)%@", [[self string] substringToIndex:insertionPoint], urlStr, [[self string] substringFromIndex:insertionPoint]]];
+        }
+        else {
+            [self setString:[NSString stringWithFormat:@"%@[Link](%@)%@", [[self string] substringToIndex:insertionPoint], urlStr, [[self string] substringFromIndex:insertionPoint]]];
+        }
+        
+        [self didChangeText];
     }
     return YES;
 }
